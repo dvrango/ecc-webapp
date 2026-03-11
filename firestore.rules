@@ -1,0 +1,29 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Colección de Sesiones (El evento actual)
+    match /sessions/{document=**} {
+      allow read: if true; // Cualquiera puede ver el evento
+      // Solo usuarios autenticados pueden modificar el evento 
+      // (Idealmente aquí validaríamos que sea TU correo o UID de administrador)
+      allow write: if request.auth != null; 
+    }
+    
+    // Colección de Asistentes (El Guest List)
+    match /attendees/{attendeeId} {
+      allow read: if true; // Todos pueden ver la lista
+      allow create: if true; // Todos pueden registrarse (incluyendo invitados sin cuenta)
+      // Solo el dueño del RSVP puede cancelarlo (borrarlo)
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow update: if false; 
+    }
+    
+    // Colección de Usuarios Registrados (Perfiles)
+    match /users/{userId} {
+      allow read: if true; // Todos pueden ver los perfiles en la lista de invitados
+      allow write: if request.auth != null && request.auth.uid == userId; // Solo tú puedes modificar tu propio perfil
+    }
+  }
+}
