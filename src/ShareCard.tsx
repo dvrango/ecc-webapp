@@ -84,33 +84,33 @@ export default function ShareCard() {
             </div>
 
             {/* Top bar */}
-            <div className="sticky top-0 z-10 bg-[#050505]/90 backdrop-blur-md border-b border-white/10 px-6 py-4 flex items-center justify-between">
+            <div className="sticky top-0 z-10 bg-[#050505]/90 backdrop-blur-md border-b border-white/10 px-3 sm:px-6 py-4 flex items-center justify-between gap-2">
                 <button
                     onClick={() => navigate('/admin')}
-                    className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors uppercase tracking-wider"
+                    className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors uppercase tracking-wider shrink-0"
                 >
                     <ArrowLeft className="w-4 h-4" />
-                    Admin
+                    <span className="hidden sm:inline">Admin</span>
                 </button>
 
-                <h1 className="text-xs tracking-[0.2em] text-white/50 uppercase">Instagram Story</h1>
+                <h1 className="text-xs tracking-[0.2em] text-white/50 uppercase truncate text-center">Instagram Story</h1>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 shrink-0">
                     <button
                         onClick={fetchSession}
                         disabled={loading}
-                        className="flex items-center gap-2 text-sm tracking-wider uppercase bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full transition-colors border border-white/10"
+                        className="flex items-center gap-2 text-sm tracking-wider uppercase bg-white/5 hover:bg-white/10 px-3 sm:px-4 py-2 rounded-full transition-colors border border-white/10"
                     >
                         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                        Refresh
+                        <span className="hidden sm:inline">Refresh</span>
                     </button>
                     <button
                         onClick={handleDownload}
                         disabled={downloading || loading}
-                        className="flex items-center gap-2 text-sm tracking-wider uppercase bg-white text-black hover:bg-white/90 px-6 py-2 rounded-full transition-colors font-bold disabled:opacity-50"
+                        className="flex items-center gap-2 text-sm tracking-wider uppercase bg-white text-black hover:bg-white/90 px-3 sm:px-6 py-2 rounded-full transition-colors font-bold disabled:opacity-50"
                     >
                         {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                        {downloading ? "Generando..." : "Descargar PNG"}
+                        <span className="hidden sm:inline">{downloading ? "Generando..." : "Descargar PNG"}</span>
                     </button>
                 </div>
             </div>
@@ -156,10 +156,10 @@ export default function ShareCard() {
                         <button
                             onClick={handleDownload}
                             disabled={downloading}
-                            className="mt-2 flex items-center gap-3 px-10 py-4 rounded-full bg-white text-black font-bold uppercase tracking-widest text-sm hover:bg-white/90 transition-all disabled:opacity-50"
+                            className="mt-2 flex items-center gap-3 px-6 sm:px-10 py-4 rounded-full bg-white text-black font-bold uppercase tracking-widest text-xs sm:text-sm hover:bg-white/90 transition-all disabled:opacity-50"
                         >
                             {downloading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-                            {downloading ? "Generando imagen..." : "Descargar PNG (1080 × 1920)"}
+                            {downloading ? "Generando..." : <><span className="sm:hidden">Descargar PNG</span><span className="hidden sm:inline">Descargar PNG (1080 × 1920)</span></>}
                         </button>
                     </motion.div>
                 )}
@@ -290,6 +290,7 @@ const StoryCard = forwardRef<HTMLDivElement, {
                     <div style={{ textAlign: 'right' }}>
                         <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: '26px', letterSpacing: '0.05em' }}>Free Entry</p>
                         <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: '26px', letterSpacing: '0.05em', marginTop: '8px' }}>All Levels</p>
+                        <p style={{ color: 'rgba(255,255,255,0.15)', fontSize: '22px', letterSpacing: '0.15em', fontFamily: 'ui-monospace, "Courier New", monospace', marginTop: '24px' }}>dgotechub</p>
                     </div>
                 </div>
             </div>

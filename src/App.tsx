@@ -190,7 +190,7 @@ export default function App() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
         >
-          <p className="text-xs tracking-[0.2em] text-white/50 uppercase mb-4">Weekly Meetup</p>
+          <p className="font-mono text-xs tracking-[0.2em] text-white/50 uppercase mb-4">dgotechub</p>
           <h1 className="font-serif text-5xl md:text-7xl lg:text-8xl leading-[0.9] tracking-tight font-light">
             English<br />
             <span className="italic text-white/70">Conversation</span><br />
@@ -387,6 +387,41 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Footer */}
+      <footer className="border-t border-white/10 py-10 px-6 pb-32">
+        <div className="max-w-5xl mx-auto flex flex-col items-center gap-6">
+          <p className="font-mono text-xs tracking-[0.2em] text-white/30">dgotechub</p>
+          <div className="flex items-center gap-8">
+            <a
+              href="https://chat.whatsapp.com/CjgnLyPC28c8SNpKw2PVT7?mode=gi_t"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs tracking-wider uppercase text-white/40 hover:text-white/80 transition-colors"
+            >
+              WhatsApp
+            </a>
+            <span className="w-1 h-1 rounded-full bg-white/20" />
+            <a
+              href="https://discord.gg/X9CahZFn3t"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs tracking-wider uppercase text-white/40 hover:text-white/80 transition-colors"
+            >
+              Discord
+            </a>
+            <span className="w-1 h-1 rounded-full bg-white/20" />
+            <a
+              href="https://instagram.com/dgotechub"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs tracking-wider uppercase text-white/40 hover:text-white/80 transition-colors"
+            >
+              Instagram
+            </a>
+          </div>
+        </div>
+      </footer>
 
       {/* Join Modal */}
       <AnimatePresence>
