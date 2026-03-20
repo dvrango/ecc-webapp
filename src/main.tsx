@@ -4,6 +4,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './App.tsx';
 import Admin from './Admin.tsx';
 import ShareCard from './ShareCard.tsx';
+import HostCard from './HostCard.tsx';
 import './index.css';
 
 const router = createBrowserRouter([
@@ -18,6 +19,10 @@ const router = createBrowserRouter([
   {
     path: '/admin/share',
     element: <ShareCard />
+  },
+  {
+    path: '/admin/host-card',
+    element: <HostCard />
   }
 ]);
 

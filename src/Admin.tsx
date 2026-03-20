@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from './lib/firebase';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { db, auth } from './lib/firebase';
 import { motion } from 'motion/react';
-import { Save, Loader2, RefreshCw, Share2 } from 'lucide-react';
+import { Save, Loader2, RefreshCw, Share2, LogOut, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const INITIAL_SESSION = {
@@ -23,11 +24,42 @@ export default function Admin() {
     const [topicsStr, setTopicsStr] = useState(INITIAL_SESSION.topics.join(', '));
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [authLoading, setAuthLoading] = useState(true);
+    const [loginEmail, setLoginEmail] = useState('');
+    const [loginPassword, setLoginPassword] = useState('');
+    const [loginError, setLoginError] = useState('');
+    const [loginSubmitting, setLoginSubmitting] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
-        fetchSession();
+        const unsub = onAuthStateChanged(auth, (user) => {
+            setCurrentUser(user);
+            setAuthLoading(false);
+        });
+        return unsub;
     }, []);
+
+    useEffect(() => {
+        if (currentUser) fetchSession();
+    }, [currentUser]);
+
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoginError('');
+        setLoginSubmitting(true);
+        try {
+            await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+        } catch (e: any) {
+            setLoginError(e.message || 'Login failed');
+        } finally {
+            setLoginSubmitting(false);
+        }
+    };
+
+    const handleSignOut = async () => {
+        await signOut(auth);
+    };
 
     const fetchSession = async () => {
         setLoading(true);
@@ -73,6 +105,63 @@ export default function Admin() {
         }
     };
 
+    if (authLoading) {
+        return (
+            <div className="min-h-screen bg-[#050505] flex items-center justify-center text-white">
+                <Loader2 className="w-8 h-8 animate-spin text-white/50" />
+            </div>
+        );
+    }
+
+    if (!currentUser) {
+        return (
+            <div className="min-h-screen bg-[#050505] text-white font-sans flex items-center justify-center p-6">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="w-full max-w-sm bg-white/[0.03] border border-white/10 rounded-3xl p-8"
+                >
+                    <h1 className="font-serif text-3xl mb-2">Admin Login</h1>
+                    <p className="text-sm text-white/50 mb-8">Sign in to access the admin panel.</p>
+                    {loginError && (
+                        <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+                            {loginError}
+                        </div>
+                    )}
+                    <form onSubmit={handleLogin} className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-xs tracking-wider uppercase text-white/50">Email</label>
+                            <input
+                                type="email"
+                                value={loginEmail}
+                                onChange={(e) => setLoginEmail(e.target.value)}
+                                className="w-full bg-transparent border-b border-white/20 pb-2 text-lg focus:outline-none focus:border-white transition-colors"
+                                required
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs tracking-wider uppercase text-white/50">Password</label>
+                            <input
+                                type="password"
+                                value={loginPassword}
+                                onChange={(e) => setLoginPassword(e.target.value)}
+                                className="w-full bg-transparent border-b border-white/20 pb-2 text-lg focus:outline-none focus:border-white transition-colors"
+                                required
+                            />
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={loginSubmitting}
+                            className="w-full py-4 rounded-full bg-white text-black hover:bg-white/90 transition-all uppercase tracking-widest text-xs font-bold flex items-center justify-center gap-2"
+                        >
+                            {loginSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sign In'}
+                        </button>
+                    </form>
+                </motion.div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-white/30 p-6 md:p-12">
             <motion.div
@@ -84,14 +173,23 @@ export default function Admin() {
                     <h1 className="font-serif text-3xl md:text-5xl tracking-tight">
                         Admin Panel
                     </h1>
-                    <button
-                        onClick={fetchSession}
-                        disabled={loading}
-                        className="flex items-center gap-2 text-sm tracking-wider uppercase bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full transition-colors border border-white/10"
-                    >
-                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                        Refresh
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={fetchSession}
+                            disabled={loading}
+                            className="flex items-center gap-2 text-sm tracking-wider uppercase bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full transition-colors border border-white/10"
+                        >
+                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                            Refresh
+                        </button>
+                        <button
+                            onClick={handleSignOut}
+                            className="flex items-center gap-2 text-sm tracking-wider uppercase bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full transition-colors border border-white/10"
+                        >
+                            <LogOut className="w-4 h-4" />
+                            Sign Out
+                        </button>
+                    </div>
                 </div>
 
                 <form onSubmit={handleSave} className="space-y-8">
@@ -206,13 +304,20 @@ export default function Admin() {
 
                 </form>
 
-                <div className="mt-8 pt-8 border-t border-white/10">
+                <div className="mt-8 pt-8 border-t border-white/10 flex flex-col sm:flex-row gap-4 justify-center">
                     <button
                         onClick={() => navigate('/admin/share')}
-                        className="w-full md:w-auto px-10 py-4 rounded-full border border-white/20 hover:bg-white/5 transition-all duration-300 uppercase tracking-widest text-xs flex items-center justify-center gap-2 mx-auto"
+                        className="w-full sm:w-auto px-10 py-4 rounded-full border border-white/20 hover:bg-white/5 transition-all duration-300 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
                     >
                         <Share2 className="w-4 h-4" />
-                        Generar imagen para redes sociales
+                        Imagen de sesión
+                    </button>
+                    <button
+                        onClick={() => navigate('/admin/host-card')}
+                        className="w-full sm:w-auto px-10 py-4 rounded-full border border-white/20 hover:bg-white/5 transition-all duration-300 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+                    >
+                        <Users className="w-4 h-4" />
+                        Buscar host
                     </button>
                 </div>
 
