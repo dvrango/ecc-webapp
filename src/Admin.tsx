@@ -180,7 +180,9 @@ export default function Admin() {
     );
   }
 
-  if (!currentUser) {
+  const ADMIN_UID = 'esw8xExc8G1dN9WaRVMC7TRz6pqm13';
+
+  if (!currentUser || currentUser.uid !== ADMIN_UID) {
     return (
       <div className="min-h-screen bg-[#050505] text-white font-sans flex items-center justify-center p-6">
         <motion.div
