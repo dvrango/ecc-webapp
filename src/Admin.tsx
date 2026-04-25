@@ -180,9 +180,26 @@ export default function Admin() {
     );
   }
 
-  const ADMIN_UID = 'esw8xExc8G1dN9WaRVMC7TRz6pqm13';
+  const ADMIN_UID = 'w8xExc8G1dN9WaRVMC7TRz6pqm13';
 
-  if (!currentUser || currentUser.uid !== ADMIN_UID) {
+  if (currentUser && currentUser.uid !== ADMIN_UID) {
+    return (
+      <div className="min-h-screen bg-[#050505] text-white font-sans flex items-center justify-center p-6">
+        <div className="text-center space-y-4">
+          <p className="font-serif text-3xl text-white/60">Sin autorización.</p>
+          <p className="text-sm text-white/30">Esta cuenta no tiene acceso al panel de administración.</p>
+          <button
+            onClick={handleSignOut}
+            className="text-xs uppercase tracking-wider text-white/40 hover:text-white/80 transition-colors border border-white/10 px-4 py-2 rounded-full"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
     return (
       <div className="min-h-screen bg-[#050505] text-white font-sans flex items-center justify-center p-6">
         <motion.div

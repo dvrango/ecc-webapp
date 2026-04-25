@@ -32,11 +32,11 @@ service cloud.firestore {
       allow create: if true; // Cualquiera puede proponer (anfitriones anónimos permitidos)
       allow update: if request.auth != null && (
         resource.data.hostUserId == request.auth.uid ||
-        request.auth.uid == "esw8xExc8G1dN9WaRVMC7TRz6pqm13"
+        request.auth.uid == "w8xExc8G1dN9WaRVMC7TRz6pqm13"
       );
       allow delete: if request.auth != null && (
         resource.data.hostUserId == request.auth.uid ||
-        request.auth.uid == "esw8xExc8G1dN9WaRVMC7TRz6pqm13"
+        request.auth.uid == "w8xExc8G1dN9WaRVMC7TRz6pqm13"
       );
     }
   }
