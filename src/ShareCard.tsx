@@ -290,7 +290,7 @@ const StoryCard = forwardRef<HTMLDivElement, {
                     <div style={{ textAlign: 'right' }}>
                         <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: '26px', letterSpacing: '0.05em' }}>Free Entry</p>
                         <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: '26px', letterSpacing: '0.05em', marginTop: '8px' }}>All Levels</p>
-                        <p style={{ color: 'rgba(255,255,255,0.15)', fontSize: '22px', letterSpacing: '0.15em', fontFamily: 'ui-monospace, "Courier New", monospace', marginTop: '24px' }}>dgotechub</p>
+                        <p style={{ color: 'rgba(255,255,255,0.15)', fontSize: '22px', letterSpacing: '0.15em', fontFamily: 'ui-monospace, "Courier New", monospace', marginTop: '24px' }}>kyzen circle</p>
                     </div>
                 </div>
             </div>

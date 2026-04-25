@@ -25,5 +25,19 @@ service cloud.firestore {
       allow read: if true; // Todos pueden ver los perfiles en la lista de invitados
       allow write: if request.auth != null && request.auth.uid == userId; // Solo tú puedes modificar tu propio perfil
     }
+
+    // Colección de Eventos (Agenda multi-sesión)
+    match /events/{eventId} {
+      allow read: if true;
+      allow create: if true; // Cualquiera puede proponer (anfitriones anónimos permitidos)
+      allow update: if request.auth != null && (
+        resource.data.hostUserId == request.auth.uid ||
+        request.auth.uid == "esw8xExc8G1dN9WaRVMC7TRz6pqm13"
+      );
+      allow delete: if request.auth != null && (
+        resource.data.hostUserId == request.auth.uid ||
+        request.auth.uid == "esw8xExc8G1dN9WaRVMC7TRz6pqm13"
+      );
+    }
   }
 }

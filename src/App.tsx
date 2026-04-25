@@ -1,22 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Calendar, MapPin, Clock, Plus, X, Loader2, Minus, CheckCircle2 } from 'lucide-react';
-import { collection, doc, onSnapshot, addDoc, getDoc, setDoc, query, where, getDocs, deleteDoc } from 'firebase/firestore';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { Calendar, MapPin, Clock, Plus, Loader2, Minus } from 'lucide-react';
+import { collection, doc, onSnapshot, addDoc, getDoc, query, where, deleteDoc } from 'firebase/firestore';
+import { signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { db, auth } from './lib/firebase';
-
-const FALLBACK_SESSION = {
-  date: new Date().toISOString().split('T')[0],
-  time: "19:00 - 21:00",
-  location: "The Coffee House, Downtown",
-  locationUrl: "",
-  host: {
-    name: "Alex Rivera",
-    avatar: "https://picsum.photos/seed/alex/200/200?grayscale",
-    bio: "English teacher & coffee enthusiast.",
-  },
-  topics: ["Technology & AI", "Travel Stories", "Favorite Books"],
-};
+import { formatDate } from './lib/utils';
+import JoinModal from './components/JoinModal';
+import Toast from './components/Toast';
 
 export default function App() {
   const [attendees, setAttendees] = useState<any[]>([]);
@@ -33,11 +24,9 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Listen to auth state
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
-        // Fetch user profile
         try {
           const profileDoc = await getDoc(doc(db, 'users', user.uid));
           if (profileDoc.exists()) {
@@ -50,66 +39,61 @@ export default function App() {
         setUserProfile(null);
       }
     });
-    // Listen to session data
-    const sessionRef = doc(db, 'sessions', 'current');
-    const unsubSession = onSnapshot(sessionRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setSessionData(docSnap.data());
-      } else {
-        setSessionData(FALLBACK_SESSION);
-      }
+
+    const unsubEvents = onSnapshot(collection(db, 'events'), (snap) => {
+      const today = new Date().toISOString().split('T')[0];
+      const allEvents = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+      const next = allEvents
+        .filter(e => e.status === 'confirmed' && e.date >= today)
+        .sort((a, b) => a.date.localeCompare(b.date))[0] ?? null;
+      setSessionData(next);
       setLoading(false);
     }, (error) => {
-      console.error("Error fetching session:", error);
-      setSessionData(FALLBACK_SESSION);
+      console.error("Error fetching events:", error);
       setLoading(false);
     });
 
     return () => {
       unsubAuth();
-      unsubSession();
+      unsubEvents();
     };
   }, []);
 
   useEffect(() => {
-    const activeSessionDate = sessionData ? sessionData.date : FALLBACK_SESSION.date;
-    if (!activeSessionDate) return;
-    
-    // Listen to attendees for the current session date
-    const q = query(collection(db, 'attendees'), where('eventDate', '==', activeSessionDate));
-    const unsubAttendees = onSnapshot(q, (snapshot) => {
-      const attendeesList: any[] = [];
-      snapshot.forEach(doc => {
-        attendeesList.push({ id: doc.id, ...doc.data() });
-      });
-      setAttendees(attendeesList);
+    if (!sessionData?.id) {
+      setAttendees([]);
+      return;
+    }
+    const q = query(collection(db, 'attendees'), where('eventId', '==', sessionData.id));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach(d => list.push({ id: d.id, ...d.data() }));
+      setAttendees(list);
     });
-
-    return () => unsubAttendees();
-  }, [sessionData]);
+    return () => unsub();
+  }, [sessionData?.id]);
 
   const handleJoin = async (newAttendee: any, userId?: string) => {
     try {
-      // Check if user already RSVP'd
-      let alreadyRsvpd = false;
+      if (!sessionData) return;
+
       if (userId) {
-        const existingRSVP = attendees.find((a: any) => a.userId === userId);
-        if (existingRSVP) {
-           alreadyRsvpd = true;
-           showToast("You are already on the guest list!");
+        const existing = attendees.find((a: any) => a.userId === userId);
+        if (existing) {
+          showToast("You are already on the guest list!");
+          setIsJoinModalOpen(false);
+          return;
         }
       }
-      
-      if (!alreadyRsvpd) {
-        const activeSessionDate = sessionData ? sessionData.date : FALLBACK_SESSION.date;
-        await addDoc(collection(db, 'attendees'), {
-          ...newAttendee,
-          userId: userId || null, // null for guests
-          eventDate: activeSessionDate,
-          createdAt: new Date().toISOString()
-        });
-        showToast("RSVP Confirmed! See you there.");
-      }
+
+      await addDoc(collection(db, 'attendees'), {
+        ...newAttendee,
+        userId: userId || null,
+        eventId: sessionData.id,
+        eventDate: sessionData.date,
+        createdAt: new Date().toISOString()
+      });
+      showToast("RSVP Confirmed! See you there.");
       setIsJoinModalOpen(false);
     } catch (e) {
       console.error("Error adding attendee:", e);
@@ -120,9 +104,9 @@ export default function App() {
   const handleCancelRSVP = async () => {
     if (!currentUser) return;
     try {
-      const existingRSVP = attendees.find((a: any) => a.userId === currentUser.uid);
-      if (existingRSVP) {
-        await deleteDoc(doc(db, 'attendees', existingRSVP.id));
+      const existing = attendees.find((a: any) => a.userId === currentUser.uid);
+      if (existing) {
+        await deleteDoc(doc(db, 'attendees', existing.id));
         showToast("RSVP Canceled. We'll miss you!");
       }
     } catch (e) {
@@ -134,18 +118,9 @@ export default function App() {
   const handleSignOut = async () => {
     try {
       await signOut(auth);
-      alert("Signed out successfully");
     } catch (e) {
       console.error("Error signing out:", e);
     }
-  };
-
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return '';
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
-    const parts = dateStr.split('-');
-    const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-    return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
   };
 
   if (loading) {
@@ -156,11 +131,9 @@ export default function App() {
     );
   }
 
-  const currentSession = sessionData || FALLBACK_SESSION;
   const isAlreadyAttending = currentUser ? attendees.some((a: any) => a.userId === currentUser.uid) : false;
-  
   const todayStr = new Date().toISOString().split('T')[0];
-  const isPastEvent = currentSession.date < todayStr;
+  const isPastEvent = sessionData ? sessionData.date < todayStr : false;
 
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-white/30">
@@ -168,7 +141,7 @@ export default function App() {
       <header className="px-6 py-12 md:py-20 max-w-5xl mx-auto relative">
         {/* User Profile Area */}
         <div className="absolute top-6 right-6 md:top-12 md:right-12">
-          {currentUser && userProfile && (
+          {currentUser && userProfile ? (
             <div className="flex items-center gap-4 bg-white/5 pr-4 pl-2 py-2 rounded-full border border-white/10">
               <div className="flex items-center gap-2">
                 <img src={userProfile.avatar} alt="You" className="w-8 h-8 rounded-full grayscale object-cover" />
@@ -182,6 +155,13 @@ export default function App() {
                 Sign Out
               </button>
             </div>
+          ) : (
+            <button
+              onClick={() => setIsJoinModalOpen(true)}
+              className="text-xs tracking-wider uppercase px-4 py-2 rounded-full border border-white/20 hover:bg-white/10 transition-colors"
+            >
+              Sign In / Register
+            </button>
           )}
         </div>
 
@@ -190,7 +170,7 @@ export default function App() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
         >
-          <p className="font-mono text-xs tracking-[0.2em] text-white/50 uppercase mb-4">dgotechub</p>
+          <p className="font-mono text-xs tracking-[0.2em] text-white/50 uppercase mb-4">kyzen circle</p>
           <h1 className="font-serif text-5xl md:text-7xl lg:text-8xl leading-[0.9] tracking-tight font-light">
             English<br />
             <span className="italic text-white/70">Conversation</span><br />
@@ -205,87 +185,136 @@ export default function App() {
           {/* Left Column: Session Details */}
           <div className="md:col-span-5 space-y-16">
 
-            {/* When & Where */}
-            <motion.section
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
-              className="space-y-6"
-            >
-              <h2 className="text-xs tracking-[0.2em] text-white/50 uppercase border-b border-white/10 pb-4">Next Session</h2>
-              <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center">
-                    <Calendar className="w-4 h-4 text-white/70" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{formatDate(currentSession.date)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center">
-                    <Clock className="w-4 h-4 text-white/70" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{currentSession.time}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center">
-                    <MapPin className="w-4 h-4 text-white/70" />
-                  </div>
-                  <div>
-                    {currentSession.locationUrl ? (
-                      <a 
-                        href={currentSession.locationUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="text-sm font-medium hover:text-white/70 transition-colors underline underline-offset-4 decoration-white/30"
-                      >
-                        {currentSession.location}
-                      </a>
-                    ) : (
-                      <p className="text-sm font-medium">{currentSession.location}</p>
-                    )}
+            {!sessionData ? (
+              <motion.section
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
+                className="space-y-6"
+              >
+                <h2 className="text-xs tracking-[0.2em] text-white/50 uppercase border-b border-white/10 pb-4">Next Session</h2>
+                <div className="bg-white/[0.02] border border-white/[0.05] p-8 rounded-2xl space-y-4">
+                  <p className="font-serif text-2xl leading-snug text-white/80">
+                    We're planning the next session.
+                  </p>
+                  <p className="text-sm text-white/40 leading-relaxed">
+                    Come back soon — we'll have the date, location, and topics ready for you here.
+                  </p>
+                  <div className="flex items-center gap-3 pt-2">
+                    <a
+                      href="https://chat.whatsapp.com/CjgnLyPC28c8SNpKw2PVT7?mode=gi_t"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs tracking-wider uppercase text-white/50 hover:text-white/90 transition-colors border border-white/10 px-4 py-2 rounded-full hover:border-white/30"
+                    >
+                      WhatsApp
+                    </a>
                   </div>
                 </div>
-              </div>
-            </motion.section>
+              </motion.section>
+            ) : isPastEvent ? (
+              <motion.section
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
+                className="space-y-6"
+              >
+                <h2 className="text-xs tracking-[0.2em] text-white/50 uppercase border-b border-white/10 pb-4">Next Session</h2>
+                <div className="bg-white/[0.02] border border-white/[0.05] p-8 rounded-2xl space-y-4">
+                  <p className="font-serif text-2xl leading-snug text-white/80">
+                    We're planning the next session.
+                  </p>
+                  <p className="text-sm text-white/40 leading-relaxed">
+                    Come back soon — we'll have the date, location, and topics ready for you here.
+                  </p>
+                  <div className="flex items-center gap-3 pt-2">
+                    <a
+                      href="https://chat.whatsapp.com/CjgnLyPC28c8SNpKw2PVT7?mode=gi_t"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs tracking-wider uppercase text-white/50 hover:text-white/90 transition-colors border border-white/10 px-4 py-2 rounded-full hover:border-white/30"
+                    >
+                      WhatsApp
+                    </a>
+                  </div>
+                </div>
+              </motion.section>
+            ) : (
+              <>
+                {/* When & Where */}
+                <motion.section
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
+                  className="space-y-6"
+                >
+                  <h2 className="text-xs tracking-[0.2em] text-white/50 uppercase border-b border-white/10 pb-4">Next Session</h2>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center">
+                        <Calendar className="w-4 h-4 text-white/70" />
+                      </div>
+                      <p className="text-sm font-medium">{formatDate(sessionData.date)}</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center">
+                        <Clock className="w-4 h-4 text-white/70" />
+                      </div>
+                      <p className="text-sm font-medium">{sessionData.time}</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center">
+                        <MapPin className="w-4 h-4 text-white/70" />
+                      </div>
+                      {sessionData.locationUrl ? (
+                        <a
+                          href={sessionData.locationUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium hover:text-white/70 transition-colors underline underline-offset-4 decoration-white/30"
+                        >
+                          {sessionData.location}
+                        </a>
+                      ) : (
+                        <p className="text-sm font-medium">{sessionData.location}</p>
+                      )}
+                    </div>
+                  </div>
+                </motion.section>
 
-            {/* Host */}
-            <motion.section
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
-              className="space-y-6"
-            >
-              <h2 className="text-xs tracking-[0.2em] text-white/50 uppercase border-b border-white/10 pb-4">This Week's Host</h2>
-              <div className="flex items-center gap-6 bg-white/5 p-6 rounded-2xl border border-white/5">
-                <img
-                  src={currentSession.host.avatar}
-                  alt={currentSession.host.name}
-                  className="w-16 h-16 rounded-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-                <div>
-                  <p className="font-serif text-xl">{currentSession.host.name}</p>
-                  <p className="text-sm text-white/50 mt-1">{currentSession.host.bio}</p>
-                </div>
-              </div>
-            </motion.section>
+                {/* Host */}
+                <motion.section
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
+                  className="space-y-6"
+                >
+                  <h2 className="text-xs tracking-[0.2em] text-white/50 uppercase border-b border-white/10 pb-4">This Week's Host</h2>
+                  <div className="flex items-center gap-6 bg-white/5 p-6 rounded-2xl border border-white/5">
+                    <img
+                      src={sessionData.host.avatar}
+                      alt={sessionData.host.name}
+                      className="w-16 h-16 rounded-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div>
+                      <p className="font-serif text-xl">{sessionData.host.name}</p>
+                      <p className="text-sm text-white/50 mt-1">{sessionData.host.bio}</p>
+                    </div>
+                  </div>
+                </motion.section>
 
-            {/* Topics */}
-            <motion.section
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
-              className="space-y-6"
-            >
-              <h2 className="text-xs tracking-[0.2em] text-white/50 uppercase border-b border-white/10 pb-4">Topics of the Week</h2>
-              <ul className="space-y-3">
-                {currentSession.topics.map((topic: string, i: number) => (
-                  <li key={i} className="flex items-center gap-3 text-sm">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white/30" />
-                    {topic}
-                  </li>
-                ))}
-              </ul>
-            </motion.section>
-
+                {/* Topics */}
+                {sessionData.topics && sessionData.topics.length > 0 && (
+                  <motion.section
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
+                    className="space-y-6"
+                  >
+                    <h2 className="text-xs tracking-[0.2em] text-white/50 uppercase border-b border-white/10 pb-4">Topics of the Week</h2>
+                    <ul className="space-y-3">
+                      {sessionData.topics.map((topic: string, i: number) => (
+                        <li key={i} className="flex items-center gap-3 text-sm">
+                          <span className="w-1.5 h-1.5 rounded-full bg-white/30" />
+                          {topic}
+                        </li>
+                      ))}
+                    </ul>
+                  </motion.section>
+                )}
+              </>
+            )}
           </div>
 
           {/* Right Column: Attendees */}
@@ -295,17 +324,19 @@ export default function App() {
               className="space-y-6"
             >
               <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                <h2 className="text-xs tracking-[0.2em] text-white/50 uppercase">Guest List ({attendees.length})</h2>
+                <h2 className="text-xs tracking-[0.2em] text-white/50 uppercase">
+                  {isPastEvent ? `Who Attended (${attendees.length})` : `Guest List (${attendees.length})`}
+                </h2>
                 {isPastEvent ? (
-                   <span className="text-xs tracking-wider uppercase text-white/50 bg-white/5 px-3 py-1.5 rounded-full border border-white/10">Event Ended</span>
-                ) : !currentUser && (
+                  <span className="text-xs tracking-wider uppercase text-white/50 bg-white/5 px-3 py-1.5 rounded-full border border-white/10">Event Ended</span>
+                ) : !currentUser && sessionData ? (
                   <button
                     onClick={() => setIsJoinModalOpen(true)}
                     className="text-xs tracking-wider uppercase flex items-center gap-2 hover:text-white/70 transition-colors"
                   >
                     <Plus className="w-3 h-3" /> Join
                   </button>
-                )}
+                ) : null}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -317,26 +348,35 @@ export default function App() {
                       animate={{ opacity: 1, scale: 1 }}
                       className="bg-white/[0.02] border border-white/[0.05] p-5 rounded-2xl hover:bg-white/[0.04] transition-colors group"
                     >
-                      <div className="flex items-center gap-4 mb-4">
+                      <div className="flex items-center gap-4">
                         <img
                           src={attendee.avatar}
                           alt={attendee.name}
                           className="w-12 h-12 rounded-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
                           referrerPolicy="no-referrer"
                         />
-                        <p className="font-serif text-lg">{attendee.name}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {attendee.interests.map((interest: string, i: number) => (
-                          <span key={i} className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border border-white/10 text-white/60">
-                            {interest}
-                          </span>
-                        ))}
+                        <div>
+                          <p className="font-serif text-lg leading-tight">{attendee.name}</p>
+                          {attendee.instagram && (
+                            <a
+                              href={`https://instagram.com/${attendee.instagram}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-white/40 hover:text-white/80 transition-colors"
+                            >
+                              @{attendee.instagram}
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </motion.div>
                   ))}
                 </AnimatePresence>
               </div>
+
+              {attendees.length === 0 && sessionData && !isPastEvent && (
+                <p className="text-sm text-white/30 py-4">Be the first to RSVP.</p>
+              )}
             </motion.section>
           </div>
 
@@ -345,7 +385,7 @@ export default function App() {
 
       {/* Floating Action Button */}
       <AnimatePresence>
-        {!isPastEvent && (
+        {sessionData && !isPastEvent && (
           <motion.div
             initial={{ opacity: 0, y: 50, x: '-50%' }}
             animate={{ opacity: 1, y: 0, x: '-50%' }}
@@ -373,26 +413,34 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Toast Notification */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -50, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, x: '-50%' }}
-            exit={{ opacity: 0, y: -50, x: '-50%' }}
-            className="fixed top-8 left-1/2 z-50 bg-[#111] border border-white/20 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 whitespace-nowrap"
-          >
-            <CheckCircle2 className="w-4 h-4 text-green-400" />
-            <span className="text-sm font-medium tracking-wide">{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <Toast message={toastMessage} />
 
       {/* Footer */}
       <footer className="border-t border-white/10 py-10 px-6 pb-32">
         <div className="max-w-5xl mx-auto flex flex-col items-center gap-6">
-          <p className="font-mono text-xs tracking-[0.2em] text-white/30">dgotechub</p>
-          <div className="flex items-center gap-8">
+          <p className="font-mono text-xs tracking-[0.2em] text-white/30">kyzen circle</p>
+          <div className="flex items-center gap-8 flex-wrap justify-center">
+            <Link
+              to="/events"
+              className="text-xs tracking-wider uppercase text-white/40 hover:text-white/80 transition-colors"
+            >
+              Events
+            </Link>
+            <span className="w-1 h-1 rounded-full bg-white/20" />
+            <Link
+              to="/host"
+              className="text-xs tracking-wider uppercase text-white/40 hover:text-white/80 transition-colors"
+            >
+              Become a Host
+            </Link>
+            <span className="w-1 h-1 rounded-full bg-white/20" />
+            <Link
+              to="/members"
+              className="text-xs tracking-wider uppercase text-white/40 hover:text-white/80 transition-colors"
+            >
+              Members
+            </Link>
+            <span className="w-1 h-1 rounded-full bg-white/20" />
             <a
               href="https://chat.whatsapp.com/CjgnLyPC28c8SNpKw2PVT7?mode=gi_t"
               target="_blank"
@@ -400,24 +448,6 @@ export default function App() {
               className="text-xs tracking-wider uppercase text-white/40 hover:text-white/80 transition-colors"
             >
               WhatsApp
-            </a>
-            <span className="w-1 h-1 rounded-full bg-white/20" />
-            <a
-              href="https://discord.gg/X9CahZFn3t"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs tracking-wider uppercase text-white/40 hover:text-white/80 transition-colors"
-            >
-              Discord
-            </a>
-            <span className="w-1 h-1 rounded-full bg-white/20" />
-            <a
-              href="https://instagram.com/dgotechub"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs tracking-wider uppercase text-white/40 hover:text-white/80 transition-colors"
-            >
-              Instagram
             </a>
           </div>
         </div>
@@ -429,205 +459,10 @@ export default function App() {
           <JoinModal
             onClose={() => setIsJoinModalOpen(false)}
             onJoin={handleJoin}
+            hideGuest={isPastEvent}
           />
         )}
       </AnimatePresence>
-    </div>
-  );
-}
-
-function JoinModal({ onClose, onJoin }: { onClose: () => void, onJoin: (data: any, uid?: string) => void }) {
-  const [mode, setMode] = useState<'guest' | 'login' | 'register'>('guest');
-  
-  const [name, setName] = useState('');
-  const [interests, setInterests] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMatch, setErrorMatch] = useState('');
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMatch('');
-    setIsSubmitting(true);
-
-    try {
-      if (mode === 'guest') {
-        if (!name.trim()) return;
-        const interestsArray = interests.split(',').map(i => i.trim()).filter(i => i);
-        await onJoin({
-          name,
-          avatar: `https://picsum.photos/seed/${name.replace(/\\s+/g, '')}/200/200?grayscale`,
-          interests: interestsArray.length > 0 ? interestsArray : ['Networking']
-        });
-      } else if (mode === 'register') {
-        if (!name.trim() || !email.trim() || !password.trim()) return;
-        
-        // Create user
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-        
-        // Create profile
-        const interestsArray = interests.split(',').map(i => i.trim()).filter(i => i);
-        const profileData = {
-          name,
-          avatar: `https://picsum.photos/seed/${name.replace(/\\s+/g, '')}/200/200?grayscale`,
-          interests: interestsArray.length > 0 ? interestsArray : ['Networking']
-        };
-        
-        await setDoc(doc(db, 'users', user.uid), profileData);
-        
-        // RSVP
-        await onJoin(profileData, user.uid);
-      } else if (mode === 'login') {
-         if (!email.trim() || !password.trim()) return;
-         
-         const userCredential = await signInWithEmailAndPassword(auth, email, password);
-         const user = userCredential.user;
-         
-         // Fetch profile
-         const profileDoc = await getDoc(doc(db, 'users', user.uid));
-         if (profileDoc.exists()) {
-            await onJoin(profileDoc.data(), user.uid);
-         } else {
-            // Edge case: no profile for this user
-            const fallbackProfile = {
-              name: "Unknown User",
-              avatar: `https://picsum.photos/seed/${user.uid}/200/200?grayscale`,
-              interests: ['Networking']
-            };
-            await onJoin(fallbackProfile, user.uid);
-         }
-      }
-    } catch (e: any) {
-      console.error(e);
-      setErrorMatch(e.message || "An error occurred");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 20 }}
-        className="w-full max-w-md bg-[#111] border border-white/10 rounded-3xl p-8 relative max-h-[90vh] overflow-y-auto"
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
-        <h3 className="font-serif text-3xl mb-2">
-          {mode === 'guest' ? 'Join as Guest' : mode === 'login' ? 'Welcome Back' : 'Create Account'}
-        </h3>
-        <p className="text-sm text-white/50 mb-6">
-          {mode === 'guest' && 'Add your details to the guest list for this session.'}
-          {mode === 'login' && 'Sign in to RSVP quickly using your saved profile.'}
-          {mode === 'register' && 'Save your details to RSVP faster next time.'}
-        </p>
-        
-        {/* Mode toggles */}
-        <div className="flex gap-2 mb-8 bg-white/5 p-1 rounded-xl">
-           <button 
-             onClick={() => setMode('guest')}
-             className={`flex-1 py-2 text-xs uppercase tracking-wider rounded-lg transition-colors ${mode === 'guest' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}
-           >
-             Guest
-           </button>
-           <button 
-             onClick={() => setMode('register')}
-             className={`flex-1 py-2 text-xs uppercase tracking-wider rounded-lg transition-colors ${mode === 'register' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}
-           >
-             Register
-           </button>
-           <button 
-             onClick={() => setMode('login')}
-             className={`flex-1 py-2 text-xs uppercase tracking-wider rounded-lg transition-colors ${mode === 'login' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}
-           >
-             Login
-           </button>
-        </div>
-
-        {errorMatch && (
-           <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
-              {errorMatch}
-           </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {(mode === 'guest' || mode === 'register') && (
-            <div className="space-y-2">
-              <label className="text-xs tracking-wider uppercase text-white/50">Your Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full bg-transparent border-b border-white/20 pb-2 text-lg focus:outline-none focus:border-white transition-colors"
-                placeholder="e.g. Jane Doe"
-                required
-              />
-            </div>
-          )}
-
-          {(mode === 'login' || mode === 'register') && (
-            <div className="space-y-2">
-              <label className="text-xs tracking-wider uppercase text-white/50">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-transparent border-b border-white/20 pb-2 text-lg focus:outline-none focus:border-white transition-colors"
-                placeholder="hello@example.com"
-                required
-              />
-            </div>
-          )}
-
-          {(mode === 'login' || mode === 'register') && (
-             <div className="space-y-2">
-               <label className="text-xs tracking-wider uppercase text-white/50">Password</label>
-               <input
-                 type="password"
-                 value={password}
-                 onChange={(e) => setPassword(e.target.value)}
-                 className="w-full bg-transparent border-b border-white/20 pb-2 text-lg focus:outline-none focus:border-white transition-colors"
-                 placeholder="••••••••"
-                 required
-               />
-             </div>
-          )}
-
-          {(mode === 'guest' || mode === 'register') && (
-            <div className="space-y-2">
-              <label className="text-xs tracking-wider uppercase text-white/50">Interests (comma separated)</label>
-              <input
-                type="text"
-                value={interests}
-                onChange={(e) => setInterests(e.target.value)}
-                className="w-full bg-transparent border-b border-white/20 pb-2 text-lg focus:outline-none focus:border-white transition-colors"
-                placeholder="e.g. Tech, Movies, Travel"
-              />
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full py-4 flex justify-center items-center rounded-full border border-white/20 hover:bg-white hover:text-black transition-all duration-300 uppercase tracking-widest text-xs mt-8 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-               mode === 'login' ? 'Sign In and RSVP' : 
-               mode === 'register' ? 'Create Account & RSVP' : 
-               'Confirm Attendance'
-            )}
-          </button>
-        </form>
-      </motion.div>
     </div>
   );
 }
