@@ -86,13 +86,16 @@ export default function Admin() {
     try {
       const topics = topicsStr.split(',').map(t => t.trim()).filter(Boolean);
 
+      const avatar = formData.host.avatar.trim() ||
+        `https://picsum.photos/seed/${formData.host.name.replace(/\s+/g, '') || 'host'}/200/200?grayscale`;
+
       if (editingEventId) {
         await updateDoc(doc(db, 'events', editingEventId), {
           date: formData.date,
           time: formData.time,
           location: formData.location,
           locationUrl: formData.locationUrl,
-          host: formData.host,
+          host: { ...formData.host, avatar },
           topics,
         });
       } else {
@@ -103,6 +106,7 @@ export default function Admin() {
           locationUrl: formData.locationUrl,
           host: {
             ...formData.host,
+            avatar,
             userId: currentUser?.uid || null,
           },
           topics,
@@ -323,13 +327,13 @@ export default function Admin() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs tracking-wider uppercase text-white/50">Avatar URL *</label>
+                <label className="text-xs tracking-wider uppercase text-white/50">Avatar URL <span className="normal-case text-white/30">(opcional)</span></label>
                 <input
                   type="url"
                   value={formData.host.avatar}
                   onChange={(e) => setFormData({ ...formData, host: { ...formData.host, avatar: e.target.value } })}
+                  placeholder="https://... (se genera automático si está vacío)"
                   className="w-full bg-transparent border-b border-white/20 pb-2 text-lg focus:outline-none focus:border-white transition-colors"
-                  required
                 />
               </div>
               <div className="space-y-2 md:col-span-2">
