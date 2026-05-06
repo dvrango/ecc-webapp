@@ -3,7 +3,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { motion } from 'motion/react';
 import { Download, Loader2, ArrowLeft, RefreshCw } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 
 const FALLBACK_SESSION = {
@@ -20,6 +20,7 @@ const CARD_H = 1920;
 const PREVIEW_SCALE = 0.35;
 
 export default function ShareCard() {
+    const { eventId } = useParams<{ eventId?: string }>();
     const [session, setSession] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [downloading, setDownloading] = useState(false);
@@ -27,12 +28,13 @@ export default function ShareCard() {
     const exportRef = useRef<HTMLDivElement>(null);
     const navigate = useNavigate();
 
-    useEffect(() => { fetchSession(); }, []);
+    useEffect(() => { fetchSession(); }, [eventId]);
 
     const fetchSession = async () => {
         setLoading(true);
         try {
-            const snap = await getDoc(doc(db, 'sessions', 'current'));
+            const docRef = eventId ? doc(db, 'events', eventId) : doc(db, 'sessions', 'current');
+            const snap = await getDoc(docRef);
             setSession(snap.exists() ? snap.data() : FALLBACK_SESSION);
         } catch {
             setSession(FALLBACK_SESSION);

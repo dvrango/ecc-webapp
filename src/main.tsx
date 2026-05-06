@@ -41,6 +41,10 @@ const router = createBrowserRouter([
     element: <ShareCard />
   },
   {
+    path: '/admin/share/:eventId',
+    element: <ShareCard />
+  },
+  {
     path: '/admin/host-card',
     element: <HostCard />
   }

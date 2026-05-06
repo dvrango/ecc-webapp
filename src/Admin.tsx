@@ -3,7 +3,7 @@ import { doc, collection, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy 
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { db, auth } from './lib/firebase';
 import { motion } from 'motion/react';
-import { Save, Loader2, RefreshCw, Share2, LogOut, Users, CheckCircle2, Trash2, Plus, X } from 'lucide-react';
+import { Save, Loader2, RefreshCw, LogOut, Users, CheckCircle2, Trash2, Plus, X, Image } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDate } from './lib/utils';
 
@@ -465,6 +465,13 @@ export default function Admin() {
                         Confirmado
                       </span>
                       <button
+                        onClick={() => navigate(`/admin/share/${event.id}`)}
+                        className="flex items-center gap-1.5 text-xs uppercase tracking-wider border border-white/20 px-3 py-2 rounded-full hover:bg-white/10 transition-colors text-white/50 hover:text-white"
+                      >
+                        <Image className="w-3 h-3" />
+                        <span className="hidden sm:inline">Imagen</span>
+                      </button>
+                      <button
                         onClick={() => handleEditEvent(event)}
                         className="text-xs uppercase tracking-wider border border-white/20 px-3 py-2 rounded-full hover:bg-white/10 transition-colors text-white/50 hover:text-white"
                       >
@@ -485,13 +492,6 @@ export default function Admin() {
         </div>
 
         <div className="mt-8 pt-8 border-t border-white/10 flex flex-col sm:flex-row gap-4 justify-center">
-          <button
-            onClick={() => navigate('/admin/share')}
-            className="w-full sm:w-auto px-10 py-4 rounded-full border border-white/20 hover:bg-white/5 transition-all duration-300 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
-          >
-            <Share2 className="w-4 h-4" />
-            Imagen de sesión
-          </button>
           <button
             onClick={() => navigate('/admin/host-card')}
             className="w-full sm:w-auto px-10 py-4 rounded-full border border-white/20 hover:bg-white/5 transition-all duration-300 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
